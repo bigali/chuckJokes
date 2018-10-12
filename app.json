@@ -1,18 +1,24 @@
 {
   "expo": {
     "name": "chuckJokes",
-    "description": "This project is really great.",
+    "description": "best chuck norris facts app ever.",
     "slug": "chuckJokes",
     "privacy": "public",
     "sdkVersion": "30.0.0",
-    "platforms": ["ios", "android"],
+    "platforms": ["android"],
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/appicon.png",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "bundleIdentifier": "com.sidev.chuckjokes"
+    },
+    "android": {
+      "package": "com.sidev.chuckjokes"
     },
     "updates": {
       "fallbackToCacheTimeout": 0

@@ -1,14 +1,23 @@
-import React, { Component } from "react";
-import { FlatList, Text, Share, AsyncStorage } from 'react-native'
+import React, {Component} from "react";
+import _ from 'underscore'
+import he from 'he'
+import {FlatList, Text, Share, AsyncStorage, StyleSheet, View, TouchableOpacity, Dimensions, Image} from 'react-native'
 import axios from "axios";
-import {Button, Card, Title} from "react-native-paper";
+import {Button, Card as MaterialCard, FAB, Title, IconButton, Colors, Portal, Modal} from "react-native-paper";
+import CardStack, {Card} from 'react-native-card-stack-swiper';
+import Carousel from "react-native-snap-carousel";
+import ImageZoom from 'react-native-image-pan-zoom'
 
+const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722', '#795548', '#607d8b', '#9e9e9e']
+var {height, width} = Dimensions.get('window');
 export default class App extends Component {
     constructor(props) {
         super(props)
         this.state = {
             jokes: [],
-            loading:  false
+            loading: false,
+            visible: false,
+            currentImage: ''
         }
     }
 
@@ -24,8 +33,7 @@ export default class App extends Component {
 
     onSave(joke) {
         this.retrieveItem("jokes").then((jokes) => {
-            console.log("retrevied jokes", jokes)
-            if(jokes) {
+            if (jokes) {
                 const newJokes = jokes.concat(joke)
                 this.storeItem("jokes", newJokes)
             } else {
@@ -34,7 +42,6 @@ export default class App extends Component {
             }
 
         }).catch((error) => {
-            console.log("chuck noriss don't like errors")
         })
     }
 
@@ -43,19 +50,23 @@ export default class App extends Component {
             //we want to wait for the Promise returned by AsyncStorage.setItem()
             //to be resolved to the actual value before returning the value
             var jsonOfItem = await AsyncStorage.setItem(key, JSON.stringify(item));
+            let newJokes = this.state.jokes
+            newJokes.push(item)
+            this.setState({
+                jokes: newJokes
+            })
             return jsonOfItem;
         } catch (error) {
-            console.log(error.message);
         }
     }
 
     async retrieveItem(key) {
         try {
-            const retrievedItem =  await AsyncStorage.getItem(key);
+            const retrievedItem = await AsyncStorage.getItem(key);
             const item = JSON.parse(retrievedItem);
             return item;
         } catch (error) {
-            console.log(error.message);
+
         }
         return
     }
@@ -63,36 +74,34 @@ export default class App extends Component {
 
     componentDidMount() {
         let url = ""
-        const  base_url = "http://api.icndb.com/jokes/"
+        const base_url = "https://www.chucknorrisfacts.fr/api/get?data="
 
 
-        if(this.props.type === "favorite") {
+        if (this.props.type === "favorite") {
             this.retrieveItem("jokes").then((jokes) => {
                 this.setState({
                     jokes: jokes
                 })
             }).catch((error) => {
-                console.log("error")
             })
         } else {
-            if(this.props.type  === "random") {
-                url = base_url + "random/20"
-            } else if(this.props.type  === "explicit") {
-                url = base_url + "random/20?limitTo=[explicit]"
-            } else if(this.props.type === "nerdy") {
+            if (this.props.type === "facts") {
+                url = base_url + "type:text;nb:20;"
+            } else if (this.props.type === "images") {
+                url = base_url + "type:img;nb:20;"
+            } else if (this.props.type === "nerdy") {
                 url = base_url + "random/20?limitTo=[nerdy]"
             }
 
             axios.get(url)
-                .then( (response) => {
+                .then((response) => {
                     // handle success
                     this.setState({
-                        jokes: response.data.value
+                        jokes: response.data
                     })
                 })
                 .catch(function (error) {
                     // handle error
-                    console.log(error);
                 })
                 .then(function () {
                     // always executed
@@ -100,27 +109,164 @@ export default class App extends Component {
         }
 
     }
+
     renderJoke = ({item}) => {
+        const rand = colors[Math.floor(Math.random() * colors.length)];
+
         return (
-            <Card style={{margin: 4}}>
-                <Card.Content>
-                    <Title>{item.joke}</Title>
-                </Card.Content>
-                <Card.Actions>
-                    <Button onPress={() => this.onShare(item.joke)}>share</Button>
-                    <Button onPress={() => this.onSave(item)}>save</Button>
-                </Card.Actions>
-            </Card>
+            <MaterialCard style={{margin: 4}} key={item.id} onPress={this.props.type === "facts" ?   () => {} : () => {
+                this.setState({
+                    currentImage: item.fact
+                }, () => {
+                    this._showModal()
+                })
+            } }>
+
+                    <MaterialCard.Content style={{
+                        height: height*0.6,
+                        backgroundColor: this.props.type === "facts" ? rand : Colors.black,
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                    }}>
+                        { this.props.type === "facts" ?
+                        <Title style={{color: 'white', textAlign: 'center'}}>{he.decode(item.fact)}</Title>
+                            :<Image resizeMode={'contain'}  style={{height: height*0.6, width: width * 0.8}} source={{ uri: item.fact}}  />
+                        }
+                    </MaterialCard.Content>
+
+
+            </MaterialCard>
         )
     }
+    renderCardJoke = (joke) => {
+        const rand = colors[Math.floor(Math.random() * colors.length)];
+        return (
+            <Card key={joke.id} style={[styles.card, {
+                backgroundColor: rand
+            }]}><Text style={styles.label}>{he.decode(joke.fact)}</Text></Card>
+
+        )
+    }
+    _showModal = () => this.setState({ visible: true });
+    _hideModal = () => this.setState({ visible: false });
 
     render() {
-        console.log(this.state.jokes)
+        const {visible} = this.state
+
         return (
-            <FlatList
-                data={this.state.jokes}
-                renderItem={this.renderJoke}
-            />
+            <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 40}}>
+                <Carousel
+                    ref={(c) => {
+                        this._carousel = c;
+                    }}
+                    data={this.state.jokes}
+                    renderItem={this.renderJoke}
+                    sliderWidth={width}
+                    itemWidth={width * 0.8}
+                />
+                <Portal>
+                    <Modal style={{backgroundColor: Colors.black}} visible={visible} onDismiss={this._hideModal}>
+                        <View style={{flex: 1, backgroundColor: Colors.black, justifyContent:'center', alignItems: 'center'}}>
+                            <ImageZoom
+                                cropWidth={Dimensions.get('window').width}
+                                cropHeight={Dimensions.get('window').height}
+                                imageWidth={Dimensions.get('window').width}
+                                imageHeight={Dimensions.get('window').width}
+                                enableSwipeDown
+                            >
+                                <Image style={{ width: width, flex: 1 }} source={{ uri: this.state.currentImage }} resizeMode={'contain'}/>
+                            </ImageZoom>
+                        </View>
+                    </Modal>
+                </Portal>
+            </View>
+
         )
     }
 }
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        flexDirection: 'column',
+        backgroundColor: '#f2f2f2',
+    },
+    content: {
+        flex: 5,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    card: {
+        width: 320,
+        height: 470,
+        backgroundColor: '#FE474C',
+        borderRadius: 5,
+        shadowColor: 'rgba(0,0,0,0.5)',
+        shadowOffset: {
+            width: 0,
+            height: 1
+        },
+        shadowOpacity: 0.5,
+    },
+    card1: {
+        backgroundColor: '#FE474C',
+    },
+    card2: {
+        backgroundColor: '#FEB12C',
+    },
+    label: {
+        lineHeight: 400,
+        textAlign: 'center',
+        fontSize: 12,
+        fontFamily: 'System',
+        color: '#ffffff',
+        backgroundColor: 'transparent',
+    },
+    footer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    buttonContainer: {
+        width: 220,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    button: {
+        shadowColor: 'rgba(0,0,0,0.3)',
+        shadowOffset: {
+            width: 0,
+            height: 1
+        },
+        shadowOpacity: 0.5,
+        backgroundColor: '#fff',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 0,
+    },
+    orange: {
+        width: 55,
+        height: 55,
+        borderWidth: 6,
+        borderColor: 'rgb(246,190,66)',
+        borderWidth: 4,
+        borderRadius: 55,
+        marginTop: -15
+    },
+    green: {
+        width: 75,
+        height: 75,
+        backgroundColor: '#fff',
+        borderRadius: 75,
+        borderWidth: 6,
+        borderColor: '#01df8a',
+    },
+    red: {
+        width: 75,
+        height: 75,
+        backgroundColor: '#fff',
+        borderRadius: 75,
+        borderWidth: 6,
+        borderColor: '#fd267d',
+    }
+});
