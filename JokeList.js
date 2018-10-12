@@ -164,6 +164,10 @@ export default class App extends Component {
                     sliderWidth={width}
                     itemWidth={width * 0.8}
                 />
+                <View style={styles.row}>
+                    <FAB icon="share" style={styles.fab} onPress={() => {}} />
+                    <FAB icon="favorite" style={styles.fab} onPress={() => {}} />
+                </View>
                 <Portal>
                     <Modal style={{backgroundColor: Colors.black}} visible={visible} onDismiss={this._hideModal}>
                         <View style={{flex: 1, backgroundColor: Colors.black, justifyContent:'center', alignItems: 'center'}}>
@@ -268,5 +272,16 @@ const styles = StyleSheet.create({
         borderRadius: 75,
         borderWidth: 6,
         borderColor: '#fd267d',
-    }
+    },
+    row: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        flexDirection: 'row',
+        marginBottom: 8
+    },
+
+    fab: {
+        margin: 8,
+    },
 });
