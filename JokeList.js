@@ -7,18 +7,38 @@ import {Button, Card as MaterialCard, FAB, Title, IconButton, Colors, Portal, Mo
 import CardStack, {Card} from 'react-native-card-stack-swiper';
 import Carousel from "react-native-snap-carousel";
 import ImageZoom from 'react-native-image-pan-zoom'
+const SLIDER_1_FIRST_ITEM = 0;
 
-const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722', '#795548', '#607d8b', '#9e9e9e']
+const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#ff9800', '#ff5722', '#795548', '#607d8b', '#9e9e9e']
 var {height, width} = Dimensions.get('window');
 export default class App extends Component {
     constructor(props) {
         super(props)
         this.state = {
             jokes: [],
+            favoriteJokes: props.favoriteJokes,
             loading: false,
             visible: false,
-            currentImage: ''
+            currentImage: '',
+            slider1ActiveSlide: SLIDER_1_FIRST_ITEM,
         }
+    }
+
+    componentDidUpdate(prevProps, prevState) {
+        // only update chart if the data has changed
+
+        if (this.props.tri !== prevProps.tri) {
+            this.getJokes()
+        }
+
+        if(this.props.favoriteJokes) {
+            if(this.props.favoriteJokes.length !== this.state.favoriteJokes) {
+                this.setState({
+                    favoriteJokes: this.props.favoriteJokes
+                })
+            }
+        }
+
     }
 
     onShare(text) {
@@ -32,6 +52,7 @@ export default class App extends Component {
     }
 
     onSave(joke) {
+
         this.retrieveItem("jokes").then((jokes) => {
             if (jokes) {
                 const newJokes = jokes.concat(joke)
@@ -41,10 +62,22 @@ export default class App extends Component {
                 this.storeItem("jokes", newJokes)
             }
 
+
         }).catch((error) => {
         })
     }
 
+    onDelete(joke) {
+        console.log("joke",joke)
+        console.log("jokes",this.state.jokes)
+        let arr  = this.state.jokes
+        arr = _.without(arr, _.findWhere(arr, {
+            id: joke.id
+        }));
+        this.props.updateFavoriteJokes(arr)
+
+        this.storeItem("jokes", arr)
+    }
     async storeItem(key, item) {
         try {
             //we want to wait for the Promise returned by AsyncStorage.setItem()
@@ -52,9 +85,8 @@ export default class App extends Component {
             var jsonOfItem = await AsyncStorage.setItem(key, JSON.stringify(item));
             let newJokes = this.state.jokes
             newJokes.push(item)
-            this.setState({
-                jokes: newJokes
-            })
+            this.props.updateFavoriteJokes(newJokes)
+
             return jsonOfItem;
         } catch (error) {
         }
@@ -71,26 +103,22 @@ export default class App extends Component {
         return
     }
 
-
     componentDidMount() {
+        this.getJokes()
+    }
+
+    getJokes = () => {
         let url = ""
         const base_url = "https://www.chucknorrisfacts.fr/api/get?data="
 
 
         if (this.props.type === "favorite") {
-            this.retrieveItem("jokes").then((jokes) => {
-                this.setState({
-                    jokes: jokes
-                })
-            }).catch((error) => {
-            })
+            console.log("sdfqds")
         } else {
             if (this.props.type === "facts") {
-                url = base_url + "type:text;nb:20;"
+                url = base_url + "type:text;nb:20;tri:" + this.props.tri
             } else if (this.props.type === "images") {
-                url = base_url + "type:img;nb:20;"
-            } else if (this.props.type === "nerdy") {
-                url = base_url + "random/20?limitTo=[nerdy]"
+                url = base_url + "type:img;nb:20;tri:" + this.props.tri
             }
 
             axios.get(url)
@@ -110,29 +138,47 @@ export default class App extends Component {
 
     }
 
-    renderJoke = ({item}) => {
-        const rand = colors[Math.floor(Math.random() * colors.length)];
+    renderJoke = ({item, index}) => {
+        const rand = colors[index % colors.length]
+        let isText=true
+        if(item.type) {
+            if(item.type === "facts") {
+                isText = true
+            } else {
+                isText = false
+            }
+        } else if(this.props.type) {
+            if(this.props.type === "facts") {
+                isText = true
+            } else {
+                isText = false
+            }
+        } else {
+            return null
+        }
 
         return (
-            <MaterialCard style={{margin: 4}} key={item.id} onPress={this.props.type === "facts" ?   () => {} : () => {
+            <MaterialCard style={{margin: 4}} key={item.id} onPress={isText ? () => {
+            } : () => {
                 this.setState({
                     currentImage: item.fact
                 }, () => {
                     this._showModal()
                 })
-            } }>
+            }}>
 
-                    <MaterialCard.Content style={{
-                        height: height*0.6,
-                        backgroundColor: this.props.type === "facts" ? rand : Colors.black,
-                        justifyContent: 'center',
-                        alignItems: 'center'
-                    }}>
-                        { this.props.type === "facts" ?
+                <MaterialCard.Content style={{
+                    height: height * 0.6,
+                    backgroundColor: isText ? rand : Colors.black,
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                }}>
+                    {isText ?
                         <Title style={{color: 'white', textAlign: 'center'}}>{he.decode(item.fact)}</Title>
-                            :<Image resizeMode={'contain'}  style={{height: height*0.6, width: width * 0.8}} source={{ uri: item.fact}}  />
-                        }
-                    </MaterialCard.Content>
+                        : <Image resizeMode={'contain'} style={{height: height * 0.6, width: width * 0.8}}
+                                 source={{uri: item.fact}}/>
+                    }
+                </MaterialCard.Content>
 
 
             </MaterialCard>
@@ -147,11 +193,12 @@ export default class App extends Component {
 
         )
     }
-    _showModal = () => this.setState({ visible: true });
-    _hideModal = () => this.setState({ visible: false });
+    _showModal = () => this.setState({visible: true});
+    _hideModal = () => this.setState({visible: false});
 
     render() {
         const {visible} = this.state
+        const currentJoke = this.state.jokes[this.state.slider1ActiveSlide]
 
         return (
             <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 40}}>
@@ -159,18 +206,32 @@ export default class App extends Component {
                     ref={(c) => {
                         this._carousel = c;
                     }}
+                    firstItem={SLIDER_1_FIRST_ITEM}
+
                     data={this.state.jokes}
                     renderItem={this.renderJoke}
                     sliderWidth={width}
                     itemWidth={width * 0.8}
+                    onSnapToItem={(index) => this.setState({slider1ActiveSlide: index})}
                 />
                 <View style={styles.row}>
-                    <FAB icon="share" style={styles.fab} onPress={() => {}} />
-                    <FAB icon="favorite" style={styles.fab} onPress={() => {}} />
+                    <FAB icon="share" style={styles.fab} onPress={() => this.onShare(he.decode(currentJoke.fact))}/>
+
+                    {
+                        this.props.type === "favorite" ?
+                            <FAB icon="delete-forever" style={styles.fab} onPress={() => this.onDelete(currentJoke)}/>:
+                            <FAB icon="favorite" style={styles.fab} onPress={() => this.onSave({...currentJoke, type: this.props.type})}/>
+                    }
+
                 </View>
                 <Portal>
                     <Modal style={{backgroundColor: Colors.black}} visible={visible} onDismiss={this._hideModal}>
-                        <View style={{flex: 1, backgroundColor: Colors.black, justifyContent:'center', alignItems: 'center'}}>
+                        <View style={{
+                            flex: 1,
+                            backgroundColor: Colors.black,
+                            justifyContent: 'center',
+                            alignItems: 'center'
+                        }}>
                             <ImageZoom
                                 cropWidth={Dimensions.get('window').width}
                                 cropHeight={Dimensions.get('window').height}
@@ -178,7 +239,8 @@ export default class App extends Component {
                                 imageHeight={Dimensions.get('window').width}
                                 enableSwipeDown
                             >
-                                <Image style={{ width: width, flex: 1 }} source={{ uri: this.state.currentImage }} resizeMode={'contain'}/>
+                                <Image style={{width: width, flex: 1}} source={{uri: this.state.currentImage}}
+                                       resizeMode={'contain'}/>
                             </ImageZoom>
                         </View>
                     </Modal>
@@ -248,37 +310,12 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         zIndex: 0,
     },
-    orange: {
-        width: 55,
-        height: 55,
-        borderWidth: 6,
-        borderColor: 'rgb(246,190,66)',
-        borderWidth: 4,
-        borderRadius: 55,
-        marginTop: -15
-    },
-    green: {
-        width: 75,
-        height: 75,
-        backgroundColor: '#fff',
-        borderRadius: 75,
-        borderWidth: 6,
-        borderColor: '#01df8a',
-    },
-    red: {
-        width: 75,
-        height: 75,
-        backgroundColor: '#fff',
-        borderRadius: 75,
-        borderWidth: 6,
-        borderColor: '#fd267d',
-    },
     row: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         flexDirection: 'row',
-        marginBottom: 8
+        padding: 8
     },
 
     fab: {

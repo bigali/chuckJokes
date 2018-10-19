@@ -1,5 +1,5 @@
 import React from 'react';
-import {ScrollView, StyleSheet, Text, View} from 'react-native';
+import {AsyncStorage, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {
     DefaultTheme,
     Provider as PaperProvider,
@@ -9,7 +9,9 @@ import {
     Colors,
     Portal, Dialog, TouchableRipple, RadioButton, Subheading,Button
 } from 'react-native-paper';
-import JokeList from "./JokeList";
+import FactScene from './FactScene'
+import FavouriteFactScene from './FavouriteFactScene'
+import ImagesFactScene from "./ImagesFactScene";
 
 const theme = {
     ...DefaultTheme,
@@ -20,8 +22,6 @@ const theme = {
     },
 };
 
-const JokeListRoute = ({ route }) => <JokeList type={route.key} />;
-const FavouriteListRoute = ({ route }) => <JokeList />;
 const tri = [
     {
         key: 'last',
@@ -30,58 +30,94 @@ const tri = [
     {
         key: 'first',
         label: 'Les Débuts'
+    },
+    {
+      key: 'top',
+        label: 'Les top'
+    },
+    {
+        key: 'flop',
+        label: 'Les flops'
+    }, {
+        key: 'alea',
+        label: 'Aléatoire'
     }
 
 ]
-/*
-        first	Les facts classées par date, les ancienne en premieres
-        top	Les facts classées par point, les mieux notés en premieres
-        flop	Les facts classées par point, les moins bien notés en premieres
-        mtop	Les facts classées par moyenne, les mieux notés en premieres
-        alea	Des facts aléatoire
-        mflop
- */
+
 
 
 export default class App extends React.Component {
     state = {
         firstQuery: '',
         index: 0,
+        favoriteJokes: [],
         routes: [
-            {key: 'facts', title: 'Facts', icon: 'home', color: Colors.amber500},
-            {key: 'images', title: 'En images', icon: 'image', color: Colors.blue500},
-            {key: 'favorite', title: 'Favoris', icon: 'favorite', color: Colors.deepOrange500},
+            {key: 'facts', title: 'Facts', icon: 'home', color: Colors.blueGrey500, tri: 'last'},
+            {key: 'images', title: 'En images', icon: 'image', color: Colors.blue500, tri: 'last'},
+            {key: 'favorite', title: 'Favoris', icon: 'favorite', color: Colors.green600, tri: 'top'},
         ],
         theme: {
             ...DefaultTheme,
             colors: {
                 ...DefaultTheme.colors,
-                primary: Colors.amber500,
-                accent: 'yellow',
+                primary: Colors.blueGrey500,
+                accent: Colors.grey200,
             },
         },
-        visible: false
+        visible: false,
+        checked: 'last',
+        sort: 'last'
     };
+    async retrieveItem(key) {
+        try {
+            const retrievedItem = await AsyncStorage.getItem(key);
+            const item = JSON.parse(retrievedItem);
+            return item;
+        } catch (error) {
 
+        }
+        return
+    }
+
+    updateFavoriteJokes = (jokes) => {
+        this.setState({
+            favoriteJokes: jokes
+        })
+    }
+
+    FactsRoute = ({ route }) => <FactScene tri={route.tri} updateFavoriteJokes={this.updateFavoriteJokes} favoriteJokes={this.state.favoriteJokes}/>
+    ImagesRoute = ({ route }) => <ImagesFactScene tri={route.tri} updateFavoriteJokes={this.updateFavoriteJokes} favoriteJokes={this.state.favoriteJokes}/>
+    FavouriteRoute = ({ route }) => <FavouriteFactScene tri={route.tri} favoriteJokes={this.state.favoriteJokes} updateFavoriteJokes={this.updateFavoriteJokes} />
     _handleIndexChange = index => {
         this.setState({index});
         const color = this.state.routes[index].color
         this.setState({
+            index: index,
+            checked: '',
             theme: {
                 ...DefaultTheme,
                 colors: {
                     ...DefaultTheme.colors,
                     primary: color,
-                    accent: 'yellow',
+                    accent: Colors.grey200,
                 },
             }
         })
     }
+    componentDidMount() {
+        this.retrieveItem("jokes").then((jokes) => {
+            this.setState({
+                favoriteJokes: jokes
+            })
+        }).catch((error) => {
+        })
+    }
 
     _renderScene = BottomNavigation.SceneMap({
-        facts: JokeListRoute,
-        images: JokeListRoute,
-        favorite: JokeListRoute,
+        facts: this.FactsRoute,
+        images: this.ImagesRoute,
+        favorite: this.FavouriteRoute,
     });
     _filterJokes = (filter) => {
         this.setState({
@@ -97,14 +133,17 @@ export default class App extends React.Component {
 
 
     render() {
-        const {firstQuery, checked, visible} = this.state;
+        const { checked, visible } = this.state;
         return (
             <PaperProvider theme={this.state.theme}>
                 <Appbar.Header>
                         <Appbar.Content
                             title="Chuck jokes"
                         />
-                    <Appbar.Action icon="filter-list" onPress={this._filterJokes} />
+                    { this.state.index !== 2 ?
+                        <Appbar.Action icon="filter-list" onPress={this._filterJokes} />:
+                        null
+                    }
 
                 </Appbar.Header>
 
@@ -121,25 +160,44 @@ export default class App extends React.Component {
                         <Dialog.ScrollArea style={{ maxHeight: 170, paddingHorizontal: 0 }}>
                             <ScrollView>
                                 <View>
-                                    <TouchableRipple
-                                        onPress={() => this.setState({ checked: 'normal' })}
-                                    >
-                                        <View style={styles.row}>
-                                            <View pointerEvents="none">
-                                                <RadioButton
-                                                    value="normal"
-                                                    status={checked === 'normal' ? 'checked' : 'unchecked'}
-                                                />
-                                            </View>
-                                            <Subheading style={styles.text}>Option 1</Subheading>
-                                        </View>
-                                    </TouchableRipple>
+                                    {
+                                        tri.map((option) => {
+                                            return(
+                                                <TouchableRipple
+                                                    key={option.key}
+                                                    onPress={() => this.setState({ checked: option.key })}
+                                                >
+                                                    <View style={styles.row}>
+                                                        <View pointerEvents="none">
+                                                            <RadioButton
+                                                                value={option.key}
+                                                                status={checked === option.key ? 'checked' : 'unchecked'}
+                                                            />
+                                                        </View>
+                                                        <Subheading style={styles.text}>{option.label}</Subheading>
+                                                    </View>
+                                                </TouchableRipple>
+                                            )
+                                        })
+                                    }
+
                                 </View>
                             </ScrollView>
                         </Dialog.ScrollArea>
                         <Dialog.Actions>
-                            <Button onPress={() => {}}>Valider</Button>
-                            <Button onPress={() => {}}>Annuler</Button>
+                            <Button onPress={() => {
+                                const routes = this.state.routes
+                                routes[this.state.index].tri =  this.state.checked
+                                this.setState({
+                                    routes: routes,
+                                    visible: false
+                                })
+                            }}>Valider</Button>
+                            <Button onPress={() => {
+                                this.setState({
+                                    visible: false
+                                })
+                            }}>Annuler</Button>
                         </Dialog.Actions>
                     </Dialog>
                 </Portal>
